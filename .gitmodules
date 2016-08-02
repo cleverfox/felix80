@@ -1,3 +1,3 @@
 [submodule "atomthreads"]
 	path = atomthreads
-	url = ./atomthreads
+	url = git://github.com/kelvinlawson/atomthreads.git
