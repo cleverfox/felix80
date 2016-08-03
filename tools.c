@@ -6,18 +6,17 @@ void out1(char c){
     _write(0,o,1);
 }
 void incout(uint32_t cn){
-    if(cn>999999)
-        out1((cn/1000000)%10+'0');
-    if(cn>99999)
-        out1((cn/100000)%10+'0');
-    if(cn>9999)
-        out1((cn/10000)%10+'0');
-    if(cn>999)
-        out1((cn/1000)%10+'0');
-    if(cn>99)
-        out1((cn/100)%10+'0');
-    out1((cn/10)%10+'0');
-    out1(cn%10+'0');
+    uint8_t out[10];
+    int r=0;
+    while(cn>0){
+        out[r]=(cn%10)+'0';
+        cn=cn/10;
+        r++;
+    }
+    while(r){
+        r--;
+        out1(out[r]);
+    }
 }
 
 void ilncout(unsigned int cn){

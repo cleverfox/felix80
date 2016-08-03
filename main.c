@@ -1,17 +1,21 @@
 #include <libopencm3/cm3/nvic.h>
 #include <libopencm3/stm32/rcc.h>
+#include <libopencm3/stm32/i2c.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/spi.h>
+#include <libopencm3/stm32/rtc.h>
+#include <libopencm3/stm32/adc.h>
 #include <libopencm3/stm32/exti.h>
 #include <libopencm3/stm32/timer.h>
 #include <libopencm3/stm32/flash.h>
 #include <libopencm3/stm32/dma.h>
 #include <libopencm3/cm3/systick.h>
 #include "tools.h"
+#include "sleep.h"
+#include "iic.h"
 #include "hw.h"
 #include <atom.h>
-//#include <atomport.h>
 #include <atomqueue.h>
 #include <atomtimer.h>
 
@@ -32,6 +36,8 @@ static void clock_setup(void) {
     rcc_periph_clock_enable(RCC_USART1);
     rcc_periph_clock_enable(RCC_USART2);
     rcc_periph_clock_enable(RCC_USART3);
+    rcc_periph_clock_enable(RCC_I2C1);
+    rcc_periph_clock_enable(RCC_I2C2);
     rcc_periph_clock_enable(RCC_SPI2);
     rcc_periph_clock_enable(RCC_DMA1);
 }
@@ -52,7 +58,7 @@ static void spi_setup(void) {
      * Frame format: MSB First
      */
     spi_init_master(SPI2, SPI_CR1_BAUDRATE_FPCLK_DIV_64, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
-            SPI_CR1_CPHA_CLK_TRANSITION_1, SPI_CR1_DFF_8BIT, SPI_CR1_MSBFIRST);
+            SPI_CR1_CPHA_CLK_TRANSITION_2, SPI_CR1_DFF_8BIT, SPI_CR1_MSBFIRST);
 
     /*
      * Set NSS management to software.
@@ -73,82 +79,19 @@ static void spi_setup(void) {
     gpio_set(GPIOB, GPIO12);
 }
 
-void exti0_isr(void)
-{
-	exti_reset_request(EXTI0);
+void exti0_isr(void) {
+    exti_reset_request(EXTI0);
 }
 
-static void tim2_setup(void) {
-	/* Enable TIM2 clock. */
-	rcc_periph_clock_enable(RCC_TIM2);
-
-	/* Enable TIM2 interrupt. */
-	nvic_enable_irq(NVIC_TIM2_IRQ);
-
-	/* Reset TIM2 peripheral. */
-	timer_reset(TIM2);
-
-	/* Timer global mode:
-	 * - No divider
-	 * - Alignment edge
-	 * - Direction up
-	 */
-	timer_set_mode(TIM2, TIM_CR1_CKD_CK_INT, TIM_CR1_CMS_EDGE, TIM_CR1_DIR_DOWN);
-
-	/* Reset prescaler value. */
-	timer_set_prescaler(TIM2, 24);
-
-	/* Enable preload. */
-	timer_disable_preload(TIM2);
-
-	/* Continous mode. */
-	timer_continuous_mode(TIM2);
-
-	/* Period (36kHz). */
-	timer_set_period(TIM2, 65535);
-
-	/* Disable outputs. */
-	timer_disable_oc_output(TIM2, TIM_OC1);
-	timer_disable_oc_output(TIM2, TIM_OC2);
-	timer_disable_oc_output(TIM2, TIM_OC3);
-	timer_disable_oc_output(TIM2, TIM_OC4);
-
-	/* -- OC1 configuration -- */
-
-	/* Configure global mode of line 1. */
-	timer_disable_oc_clear(TIM2, TIM_OC1);
-	timer_disable_oc_preload(TIM2, TIM_OC1);
-	timer_set_oc_slow_mode(TIM2, TIM_OC1);
-	timer_set_oc_mode(TIM2, TIM_OC1, TIM_OCM_FROZEN);
-
-	/* Set the capture compare value for OC1. */
-//	timer_set_oc_value(TIM2, TIM_OC1, 1000);
-
-	/* ---- */
-
-	/* ARR reload enable. */
-	timer_disable_preload(TIM2);
-
-	/* Counter enable. */
-	timer_enable_counter(TIM2);
-
-	/* Enable commutation interrupt. */
-	timer_enable_irq(TIM2, TIM_DIER_CC1IE);
+void i2c2_ev_isr(void){
+    usart_send_blocking(USART1, 'V');
 }
-
+void i2c2_er_isr(void){
+    usart_send_blocking(USART1, 'R');
+}
 
 static ATOM_QUEUE uart1_rx;
 static ATOM_QUEUE uart1_tx;
-void tim2_isr(void) {
-//    atomIntEnter();
-    if (timer_get_flag(TIM2, TIM_SR_CC1IF)) {
-        timer_clear_flag(TIM2, TIM_SR_CC1IF);
-//        char data='T';
-//        atomQueuePut(&uart1_tx,0, (uint8_t*) &data);
-    }
-//    atomIntExit(0);
-}
-
 void _fault(__unused int code, __unused int line, __unused const char* function){
     cm_mask_interrupts(true);
     gpio_set(GPIOC, GPIO4); //green led off
@@ -200,74 +143,31 @@ void usart1_isr(void) {
     atomIntExit(0);
 }
 
-#if 0
-        if(s.cut){
-            SBR();
-            Uart1WriteStr("C_");
-            int x=0;
-            int step=0;
-            while(1){
-                ONV();
-                MOTOR(x);
-                x++;
-                myDelay(1500);
-                if(!IS_CUTED()){
-                    step=1;
-                }else{
-                    if(step>0){
-                        step++;
-                        if(step>100)
-                            break;
-                    }
-                }
-            }
-            Uart1WriteStr("C-");
-            s.cut=0;
-        }
-        if(s.linefeed){
-            SBR();
-            Uart1WriteStr("F_");
-            int x=100;
-            while(x--){
-                ONV();
-                MOTOR(x);
-                myDelay(1500);
-            }
-            Uart1WriteStr("F-");
-            s.linefeed=0;
-        }
-        myDelay(800000);
-        Uart1WriteStr(".");
-#endif
+static void adc_setup(void) {
+    gpio_set_mode(GPIOA, GPIO_MODE_INPUT, GPIO_CNF_INPUT_ANALOG, GPIO7); //TERM thermistor
+    gpio_set_mode(GPIOA, GPIO_MODE_INPUT, GPIO_CNF_INPUT_ANALOG, GPIO6); //VPL +24v when ONV
+    gpio_set_mode(GPIOA, GPIO_MODE_INPUT, GPIO_CNF_INPUT_ANALOG, GPIO5); //VIN
+    gpio_set_mode(GPIOA, GPIO_MODE_INPUT, GPIO_CNF_INPUT_ANALOG, GPIO4); //X5 SNPE
 
-#if 1
-void cdelay(uint32_t);
+    /* Make sure the ADC doesn't run during config. */
+    //adc_power_off(ADC1);
 
-void cdelay(uint32_t t) {
-    volatile uint32_t t1=timer_get_counter(TIM2);
-    volatile uint32_t t2=t1-t;
-    if(t1 < t){
-        t2=0xffff-(t-t1);
-        while(true){
-            volatile uint32_t cc=timer_get_counter(TIM2);
-            if(cc<=t2 && cc>t1)
-                break;
-        }
-    }else{
-        while(true){
-            volatile uint32_t cc=timer_get_counter(TIM2);
-            if(cc<t2) break;
-        }
-    }
-}
-#endif
+    /* We configure everything for one single conversion. */
+    adc_disable_scan_mode(ADC1);
+    adc_set_single_conversion_mode(ADC1);
+    adc_disable_external_trigger_regular(ADC1);
+    adc_set_right_aligned(ADC1);
+    adc_set_sample_time_on_all_channels(ADC1, ADC_SMPR_SMP_28DOT5CYC);
 
-inline void idelay(uint32_t);
-inline void idelay(uint32_t t){
-    timer_set_counter(TIM2, t);
-    TIM_DIER(TIM2) |= TIM_DIER_CC1IE;
-    //timer_enable_irq(TIM2, TIM_DIER_CC1IE);
-    __asm("wfi");
+    adc_power_on(ADC1);
+
+    /* Wait for ADC starting up. */
+    int i;
+    for (i = 0; i < 800000; i++) /* Wait a bit. */
+        __asm__("nop");
+
+    adc_reset_calibration(ADC1);
+    adc_calibration(ADC1);
 }
 
 static uint8_t idle_stack[256];
@@ -275,8 +175,6 @@ static uint8_t idle_stack[256];
 #define THREAD_PRIO     42
 static uint8_t thread_stacks[3][STACK_SIZE];
 
-static void uart1_thread(uint32_t data);
-static ATOM_TCB uart1_thread_tcb;
 #define UART_QLEN 64
 static uint8_t uart1_rx_storage[UART_QLEN];
 static uint8_t uart1_tx_storage[UART_QLEN];
@@ -300,16 +198,23 @@ int main(void) {
     nvic_set_priority(NVIC_PENDSV_IRQ, 0xFF);
     nvic_set_priority(NVIC_SYSTICK_IRQ, 0xFE);
 
-    //gpio_setup();
     usart_setup();
-    //tim_setup();
     spi_setup();
     init_hw();
     tim2_setup();
+    adc_setup();
+    i2c1_setup();
+    i2c2_setup();
 
     nvic_set_priority(NVIC_DMA1_CHANNEL5_IRQ, 0);
     nvic_enable_irq(NVIC_DMA1_CHANNEL5_IRQ);
 
+
+	rtc_auto_awake(RCC_LSE, 0x7fff); //run RTC
+#if 0 //reset RTC
+	rtc_awake_from_off(LSE);
+	rtc_set_prescale_val(0x7fff);
+#endif
     /*
     usart_send_blocking(USART1, 'h');
     usart_send_blocking(USART1, 'i');
@@ -331,46 +236,27 @@ int main(void) {
     atomThreadCreate(&logic_thread_tcb, THREAD_PRIO, logic_thread, 0,
             thread_stacks[0], STACK_SIZE, TRUE);
 
-    atomThreadCreate(&uart1_thread_tcb, THREAD_PRIO, uart1_thread, 0,
-            thread_stacks[1], STACK_SIZE, TRUE);
-
     atomThreadCreate(&printer_thread_tcb, 50, printer_thread, 0,
-            thread_stacks[2], STACK_SIZE, TRUE);
+            thread_stacks[1], STACK_SIZE, TRUE);
 
     gpio_clear(GPIOC, GPIO4);
     atomOSStart();
 
-    while(1){};
+    fault(254);
     return 0;
 }
 
 static void logic_thread(uint32_t args __maybe_unused) {
     while(1){
-        //uint8_t data;
-        /*
-        uint8_t status = atomQueueGet(&uart1_rx, SYSTEM_TICKS_PER_SEC, &data);
-        if(status == ATOM_OK){
-    	    data++;
-            atomQueuePut(&uart1_tx,0, (uint8_t*) &data);
-        }else{
-        }
-        */
-        _write(0,"-=-=-=\r\n",8);
-        atomTimerDelay(SYSTEM_TICKS_PER_SEC*4);
+        uint32_t rtc=rtc_get_counter_val();
+        _write(0,"-=-=[",5);
+        incout(rtc);
+        _write(0,"]=-=-\r\n",7);
+        atomTimerDelay(SYSTEM_TICKS_PER_SEC);
     }
 }
 
-static void uart1_thread(uint32_t data __maybe_unused) {
-    while(1){
-        uint8_t msg;
-        uint8_t status = atomQueueGet(&uart1_tx, 0, &msg);
-        if(status == ATOM_OK){
-            usart_send_blocking(USART1, msg);
-        }
-    }
-}
-
-void dma1_channel5_isr(void) {
+void dma1_channel5_isr(void) { //SPI transfer to head done
     atomIntEnter();
     if ((DMA1_ISR &DMA_ISR_TCIF5) != 0) {
         DMA1_IFCR |= DMA_IFCR_CTCIF5;
@@ -379,8 +265,7 @@ void dma1_channel5_isr(void) {
     spi_disable_tx_dma(SPI2);
     dma_disable_channel(DMA1, DMA_CHANNEL5);
 
-    char data='D';
-    atomQueuePut(&uart1_tx,0, (uint8_t*) &data);
+    _write(0,"DMA",3);
     atomIntExit(0);
 }
 
@@ -418,8 +303,12 @@ static void printer_thread(uint32_t arg __maybe_unused) {
 		dma_enable_transfer_complete_interrupt(DMA1, DMA_CHANNEL5);
 		dma_enable_channel(DMA1, DMA_CHANNEL5);
                 spi_enable_tx_dma(SPI2);
-            }
-            if(data=='q'){
+            }else if(data=='e'){
+                //rtc_set_counter_val(1470210925);
+                gpio_clear(GPIOB, GPIO12);
+                iic_write(I2C2,0x33);
+                gpio_set(GPIOB, GPIO12);
+            }else if(data=='q'){
                 _write(0,"q\r\n",3);
                 int x=36;
                 gpio_clear(GPIOB, GPIO12);
@@ -427,7 +316,7 @@ static void printer_thread(uint32_t arg __maybe_unused) {
                     spi_xfer(SPI2, 0x0000);
                 }
                 gpio_set(GPIOB, GPIO12);
-            }
+            }else
             if(data=='f'){
                 _write(0,"feed\r\n",6);
                 CRITICAL_START();
@@ -443,7 +332,7 @@ static void printer_thread(uint32_t arg __maybe_unused) {
                     gpio_set(GPIOC, GPIO5);
                 }
                 CRITICAL_END();
-            }
+            }else
             if(data=='p'){
                 _write(0,"prin\r\n",6);
                 CRITICAL_START();
@@ -462,8 +351,29 @@ static void printer_thread(uint32_t arg __maybe_unused) {
                     gpio_set(GPIOC, GPIO1);
                 }
                 CRITICAL_END();
+            }else
+            if(data=='c' && 0){
+                SBR();
+                int x=0;
+                int step=0;
+                while(1){
+                    ONV();
+                    MOTOR(x);
+                    x++;
+                    cdelay(1500);
+                    if(!IS_CUTED()){
+                        step=1;
+                    }else{
+                        if(step>0){
+                            step++;
+                            if(step>100)
+                                break;
+                        }
+                    }
+                }
+            }else{
+                _write(0, (char*)&data, 1);
             }
-            atomQueuePut(&uart1_tx,0, (uint8_t*) &data);
         }
         //atomTimerDelay(SYSTEM_TICKS_PER_SEC >> 4);
     }
@@ -473,9 +383,8 @@ int _write(__unused int file, char *ptr, int len) {
     int i;
     for (i = 0; i < len; i++){
         atomQueuePut(&uart1_tx,0, (uint8_t*) &ptr[i]);
-//        usart_send_blocking(USART1, ptr[i]);
     }
-    //USART_CR1(USART1) |= USART_CR1_TXEIE;
+    USART_CR1(USART1) |= USART_CR1_TXEIE;
     return i;
 }
 

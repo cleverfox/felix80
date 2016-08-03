@@ -30,7 +30,7 @@ CFLAGS += -Iatomthreads/kernel -Iatomthreads/ports/cortex-m
 #CFLAGS += -std=c99
 CFLAGS += -D__GNU_VISIBLE 
 
-OBJS = tools.o cortexm3_macro.o hw.o atom*.o
+OBJS = tools.o cortexm3_macro.o hw.o atom*.o sleep.o iic.o
 
 include Makefile.rules
 
