@@ -21,9 +21,11 @@
 
 void _fault(int, int, const char*);
 #define fault(code) _fault(code,__LINE__,__FUNCTION__)
+/*
 void hard_fault_handler() {
     fault(255);
 }
+*/
 
 static void clock_setup(void) {
     rcc_clock_setup_in_hse_8mhz_out_24mhz();
@@ -203,8 +205,10 @@ int main(void) {
     init_hw();
     tim2_setup();
     adc_setup();
+    /*
     i2c1_setup();
     i2c2_setup();
+    */
 
     nvic_set_priority(NVIC_DMA1_CHANNEL5_IRQ, 0);
     nvic_enable_irq(NVIC_DMA1_CHANNEL5_IRQ);
@@ -343,12 +347,16 @@ static void printer_thread(uint32_t arg __maybe_unused) {
                         ONV();
                     }
                     MOTOR(x);
-                    gpio_clear(GPIOC, GPIO0);
-                    cdelay(500);
                     gpio_set(GPIOC, GPIO0);
-                    gpio_clear(GPIOC, GPIO1);
-                    cdelay(500);
+                    gpio_set(GPIOB, GPIO14);
+                    cdelay(1000);
+                    gpio_clear(GPIOB, GPIO14);
+                    gpio_clear(GPIOC, GPIO0);
                     gpio_set(GPIOC, GPIO1);
+                    gpio_set(GPIOB, GPIO14);
+                    cdelay(1000);
+                    gpio_clear(GPIOB, GPIO14);
+                    gpio_clear(GPIOC, GPIO1);
                 }
                 CRITICAL_END();
             }else

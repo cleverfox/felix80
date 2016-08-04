@@ -26,15 +26,15 @@ void init_hw(void){
 
     //ST1
     gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO0);
-    gpio_set(GPIOC, GPIO0);
+    gpio_clear(GPIOC, GPIO0);
 
     //ST2
     gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO1);
-    gpio_set(GPIOC, GPIO1);
+    gpio_clear(GPIOC, GPIO1);
     
     //PRIN
     gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO14);
-    gpio_set(GPIOB, GPIO14);
+    gpio_clear(GPIOB, GPIO14);
 
     //ONV
     gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO2);
