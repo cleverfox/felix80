@@ -28,13 +28,16 @@ FP_FLAGS	?= -msoft-float
 ARCH_FLAGS	= -mthumb -mcpu=cortex-m3 $(FP_FLAGS) -mfix-cortex-m3-ldrd
 CFLAGS += -Iatomthreads/kernel -Iatomthreads/ports/cortex-m
 #CFLAGS += -std=c99
-CFLAGS += -D__GNU_VISIBLE 
+CFLAGS += -D_XOPEN_SOURCE=0
+CFLAGS += -Ilibopencm3/include
+#CFLAGS += -I/usr/local/gcc-arm-embedded-5_4-2016q2-20160622/arm-none-eabi/include
 
 OBJS = tools.o cortexm3_macro.o hw.o atom*.o sleep.o iic.o
 
 include Makefile.rules
 
-LDLIBS += -L/usr/local/gcc-arm-embedded-5_2-2015q4-20151219/arm-none-eabi/lib -lc_nano
+#LDLIBS += -L/usr/local/gcc-arm-embedded-5_4-2016q2-20160622/arm-none-eabi/lib -lc_nano
+LDLIBS += -lc_nano
 
 
 bin: main.elf

@@ -1,4 +1,5 @@
 #!/bin/sh
+P=`pwd`
 cd atomthreads/ports/cortex-m
-gmake
+gmake OPENCM3_DIR=$P/libopencm3
 cp build/atom*.o ../../..
