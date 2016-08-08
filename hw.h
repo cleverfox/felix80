@@ -7,6 +7,14 @@ void SBR(void);
 void ONV(void);
 void MOTOR(uint8_t phase);
 uint8_t IS_CUTED(void);
+void redled_toggle(void);
+void redled_off(void);
+void redled_on(void);
+void grnled_off(void);
+void grnled_on(void);
+void beep_off(void);
+void beep_on(void);
+
 
 #endif
 

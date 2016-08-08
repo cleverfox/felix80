@@ -108,3 +108,26 @@ uint8_t IS_CUTED(void) {
 };
 
 
+inline void redled_toggle(void){
+    gpio_toggle(GPIOC, GPIO5); //red led toggle
+}
+inline void redled_off(void){
+    gpio_set(GPIOC, GPIO5); //red led off
+}
+inline void redled_on(void){
+    gpio_clear(GPIOC, GPIO5); //red led on
+}
+inline void grnled_off(void){
+    gpio_set(GPIOC, GPIO4); //green led off
+}
+inline void grnled_on(void){
+    gpio_clear(GPIOC, GPIO4); //green led on
+}
+
+inline void beep_off(void){
+    gpio_clear(GPIOB, GPIO5); //beeper
+}
+inline void beep_on(void){
+    gpio_set(GPIOB, GPIO5); //beeper
+}
+

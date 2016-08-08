@@ -96,18 +96,18 @@ static ATOM_QUEUE uart1_rx;
 static ATOM_QUEUE uart1_tx;
 void _fault(__unused int code, __unused int line, __unused const char* function){
     cm_mask_interrupts(true);
-    gpio_set(GPIOC, GPIO4); //green led off
+    grnled_off();
     while(1){
         int l=4;
         while(l--){
-            gpio_set(GPIOB, GPIO5); //beeper
+            beep_on();
             volatile int x=300;
             while(x--){};
-            gpio_clear(GPIOB, GPIO5); //beeper
+            beep_off();
             x=50000;
             while(x--){};
         }
-        gpio_toggle(GPIOC, GPIO5); //red led
+        redled_toggle();
     }
 };
 
@@ -243,7 +243,7 @@ int main(void) {
     atomThreadCreate(&printer_thread_tcb, 50, printer_thread, 0,
             thread_stacks[1], STACK_SIZE, TRUE);
 
-    gpio_clear(GPIOC, GPIO4);
+    grnled_on();
     atomOSStart();
 
     fault(254);

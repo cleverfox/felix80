@@ -4,3 +4,6 @@
 [submodule "atomthreads"]
 	path = atomthreads
 	url = git://github.com/kelvinlawson/atomthreads.git
+[submodule "chargen"]
+	path = chargen
+	url = ssh://git@git.wtf-rg.com:15616/schetmash/chargen.git
