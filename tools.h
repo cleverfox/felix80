@@ -11,6 +11,6 @@ void x4cout(uint32_t c);
 uint32_t b2i(void* a);
 void i2b(uint32_t i, void* a);
 uint16_t b2s(void* a);
-void* memcpy(uint8_t *dst, uint8_t * src, uint32_t len);
+void* memcpyx(uint8_t *dst, uint8_t * src, uint32_t len);
 //void* memcpy32(uint32_t *dst, uint32_t* src, uint32_t len);
 
