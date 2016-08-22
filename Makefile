@@ -29,16 +29,16 @@ ARCH_FLAGS	= -mthumb -mcpu=cortex-m3 $(FP_FLAGS) -mfix-cortex-m3-ldrd
 CFLAGS += -Iatomthreads/kernel -Iatomthreads/ports/cortex-m
 #CFLAGS += -std=c99
 CFLAGS += -D_XOPEN_SOURCE=0
-CFLAGS += -Ilibopencm3/include
+CFLAGS += -Ilibopencm3/include -Ichargen
 #CFLAGS += -I/usr/local/gcc-arm-embedded-5_4-2016q2-20160622/arm-none-eabi/include
 
-OBJS = tools.o cortexm3_macro.o hw.o atom*.o sleep.o iic.o chargen.o lucida10.o tahoma8.o verdana8.o
+OBJS = tools.o cortexm3_macro.o hw.o sleep.o iic.o 
 
 include Makefile.rules
 
 #LDLIBS += -L/usr/local/gcc-arm-embedded-5_4-2016q2-20160622/arm-none-eabi/lib -lc_nano
+OBJS += -L. -latomthreads -lchargen 
 LDLIBS += -lc_nano
-
 
 bin: main.elf
 	arm-none-eabi-objcopy -Obinary main.elf main.bin

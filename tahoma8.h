@@ -1,1 +1,0 @@
-/usr/home/cleverfox/Projects/schetmash/felix80/chargen/tahoma8.h

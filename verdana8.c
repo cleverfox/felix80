@@ -1,1 +1,0 @@
-/usr/home/cleverfox/Projects/schetmash/felix80/chargen/verdana8.c
