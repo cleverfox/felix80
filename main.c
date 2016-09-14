@@ -26,6 +26,7 @@
 #include "lucida10.h"
 
 
+
 void _fault(int, int, const char*);
 #define fault(code) _fault(code,__LINE__,__FUNCTION__)
 /*
@@ -211,7 +212,7 @@ static void adc_setup(void) {
 }
 
 static uint8_t idle_stack[256];
-#define STACK_SIZE      1024
+#define STACK_SIZE      2048
 #define THREAD_PRIO     42
 static uint8_t thread_stacks[3][STACK_SIZE];
 
@@ -223,7 +224,7 @@ static uint8_t uart1_tx_storage[UART_QLEN];
 #define STRQLEN 2
 struct print_str {
     uint8_t repeat_lines;
-    uint8_t action;
+//    uint8_t action;
     char str[96];
 };
 static struct print_str str2pr_storage[LINQLEN];
@@ -266,6 +267,7 @@ int main(void) {
     init_hw();
     tim2_setup();
     adc_setup();
+    SBR();
     /*
     i2c1_setup();
     i2c2_setup();
@@ -328,13 +330,33 @@ int main(void) {
 }
 
 static void logic_thread(uint32_t args __maybe_unused) {
-    while(1){
-        uint32_t rtc=rtc_get_counter_val();
-        _write(0,"-=-=[",5);
-        incout(rtc);
-        _write(0,"]=-=-\r\n",7);
-        atomTimerDelay(SYSTEM_TICKS_PER_SEC);
-    }
+	uint8_t ch;
+#define SLEN 40
+	struct print_str s2pr;
+	s2pr.repeat_lines=1;
+	uint32_t sptr=0;
+	while(1){
+		uint8_t status = atomQueueGet(&uart1_rx, SYSTEM_TICKS_PER_SEC, (void*)&ch);
+		uint32_t rtc=rtc_get_counter_val();
+		_write(0,"-=-=[",5);
+		incout(rtc);
+		if(status == ATOM_OK){
+			uint8_t done=0;
+			if(ch=='\r' || ch=='\n')
+				done=1;
+			else
+				s2pr.str[sptr++]=ch;
+
+			if(!done && SLEN<=sptr)
+				done=1;
+			if(done){
+				atomQueuePut(&str2print, 0, (uint8_t*) &s2pr);
+			}
+			//_write(0,&ch,1);
+		}
+		_write(0,"]=-=-\r\n",7);
+//		atomTimerDelay(SYSTEM_TICKS_PER_SEC);
+	}
 }
 
 /*
@@ -360,13 +382,14 @@ void dma1_channel5_isr(void) { //SPI transfer to head done
     dma_disable_transfer_complete_interrupt(DMA1, DMA_CHANNEL5);
     spi_disable_tx_dma(SPI2);
     dma_disable_channel(DMA1, DMA_CHANNEL5);
+    _write(0,"S",1);
 
     atomSemPut (&dma_busy);
     atomIntExit(0);
 }
 
 static void printer_thread(uint32_t arg __maybe_unused) {
-    //CRITICAL_STORE;
+    CRITICAL_STORE;
     uint8_t printbuf[72];
     struct print_str instr;
 
@@ -378,60 +401,72 @@ static void printer_thread(uint32_t arg __maybe_unused) {
     while(1){
         uint8_t status = atomQueueGet(&str2print, 0, (void*)&instr);
         uint32_t x=1000;
-        if(status == ATOM_OK){
-            uint8_t fc[FCLEN];
-            memset(fc,0,FCLEN);
-            uint8_t bin[72];
-            uint8_t h=1;
-            for(int line=0;line<h;line++){
-                x--;
-                memset(bin,0,72);
-                __unused int bytes=render_line(line, instr.str, sizeof(instr.str), fonts, bin, 72, fc, NULL, &h);
+	if(status == ATOM_OK){
+		_write(0,instr.str,strlen(instr.str));
+		uint8_t fc[FCLEN];
+		memset(fc,0,FCLEN);
+		uint8_t bin[72];
+		uint8_t h=1;
+		for(int line=0;line<h;line++){
+			x--;
+			memset(bin,0,72);
+			__unused int bytes=render_line(line, instr.str, sizeof(instr.str), fonts, bin, 72, fc, NULL, &h);
 
-                dma_channel_reset(DMA1, DMA_CHANNEL5);
-                dma_set_peripheral_address(DMA1, DMA_CHANNEL5, (uint32_t)&SPI2_DR);
-                dma_set_memory_address(DMA1, DMA_CHANNEL5, (uint32_t)printbuf);
-                dma_set_number_of_data(DMA1, DMA_CHANNEL5, 72);
-                dma_set_read_from_memory(DMA1, DMA_CHANNEL5);
-                dma_enable_memory_increment_mode(DMA1, DMA_CHANNEL5);
+/*
+			dma_channel_reset(DMA1, DMA_CHANNEL5);
+			dma_set_peripheral_address(DMA1, DMA_CHANNEL5, (uint32_t)&SPI2_DR);
+			dma_set_memory_address(DMA1, DMA_CHANNEL5, (uint32_t)printbuf);
+			dma_set_number_of_data(DMA1, DMA_CHANNEL5, 72);
+			dma_set_read_from_memory(DMA1, DMA_CHANNEL5);
+			dma_enable_memory_increment_mode(DMA1, DMA_CHANNEL5);
 
-                dma_set_peripheral_size(DMA1, DMA_CHANNEL5, DMA_CCR_PSIZE_8BIT);
-                dma_set_memory_size(DMA1, DMA_CHANNEL5, DMA_CCR_MSIZE_8BIT);
+			dma_set_peripheral_size(DMA1, DMA_CHANNEL5, DMA_CCR_PSIZE_8BIT);
+			dma_set_memory_size(DMA1, DMA_CHANNEL5, DMA_CCR_MSIZE_8BIT);
 
-                dma_set_priority(DMA1, DMA_CHANNEL5, DMA_CCR_PL_HIGH);
+			dma_set_priority(DMA1, DMA_CHANNEL5, DMA_CCR_PL_HIGH);
 
-                dma_enable_transfer_complete_interrupt(DMA1, DMA_CHANNEL5);
-                dma_enable_channel(DMA1, DMA_CHANNEL5);
-                spi_enable_tx_dma(SPI2);
+			dma_enable_transfer_complete_interrupt(DMA1, DMA_CHANNEL5);
+			dma_enable_channel(DMA1, DMA_CHANNEL5);
+			spi_enable_tx_dma(SPI2);
+*/
 
-                SBR();
-                if(x%10==0){
-                    ONV();
-                }
-                MOTOR(x);
+			int b=0;
+			while(b<72){
+				uint16_t send=bin[b]<<8|bin[b+1];
+				spi_xfer(SPI2, send);
+				b+=2;
+			}
 
-                cdelay(500);
-                atomSemGet (&dma_busy, 0);
 
-                //latch printhead register
-                gpio_clear(GPIOB, GPIO12);
-                gpio_set(GPIOB, GPIO12);
+			ONV();
 
-                //CRITICAL_START();
-                gpio_set(GPIOC, GPIO0);
-                gpio_set(GPIOB, GPIO14);
-                cdelay(500);
-                gpio_clear(GPIOB, GPIO14);
-                gpio_clear(GPIOC, GPIO0);
-                gpio_set(GPIOC, GPIO1);
-                gpio_set(GPIOB, GPIO14);
-                cdelay(500);
-                gpio_clear(GPIOB, GPIO14);
-                gpio_clear(GPIOC, GPIO1);
-                //CRITICAL_END();
+			MOTOR(x);
 
-            }
-        }
+			cdelay(500);
+
+			//atomSemGet (&dma_busy, 0);
+
+			CRITICAL_START();
+			//latch printhead register
+			gpio_clear(GPIOB, GPIO12);
+			gpio_set(GPIOB, GPIO12);
+
+
+			gpio_set(GPIOC, GPIO0);
+			gpio_set(GPIOB, GPIO14);
+			cdelay(500);
+			gpio_clear(GPIOB, GPIO14);
+			gpio_clear(GPIOC, GPIO0);
+
+			gpio_set(GPIOC, GPIO1);
+			gpio_set(GPIOB, GPIO14);
+			cdelay(500);
+			gpio_clear(GPIOB, GPIO14);
+			gpio_clear(GPIOC, GPIO1);
+
+			CRITICAL_END();
+		}
+	}
         //atomTimerDelay(SYSTEM_TICKS_PER_SEC >> 4);
     }
 }
