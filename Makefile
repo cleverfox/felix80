@@ -32,7 +32,7 @@ CFLAGS += -D_XOPEN_SOURCE=0
 CFLAGS += -Ilibopencm3/include -Ichargen
 #CFLAGS += -I/usr/local/gcc-arm-embedded-5_4-2016q2-20160622/arm-none-eabi/include
 
-OBJS = tools.o cortexm3_macro.o hw.o sleep.o iic.o 
+OBJS = tools.o cortexm3_macro.o hw.o sleep.o iic.o chargen.o
 
 include Makefile.rules
 
