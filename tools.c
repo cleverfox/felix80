@@ -1,11 +1,11 @@
 #include "tools.h"
 
-void out1(char c);
-void out1(char c){
+void out1(int fd, char c);
+void out1(int fd, char c){
     char o[2]={c,0};
-    _write(0,o,1);
+    _write(fd,o,1);
 }
-void incout(uint32_t cn){
+void incout(int fd, uint32_t cn){
     uint8_t out[10];
     int r=0;
     while(cn>0){
@@ -15,50 +15,35 @@ void incout(uint32_t cn){
     }
     while(r){
         r--;
-        out1(out[r]);
+        out1(fd, out[r]);
     }
-}
-
-void ilncout(unsigned int cn){
-    out1('\r');
-    out1('\n');
-    incout(cn);
-}
-
-void icout(uint32_t cn){
-    incout(cn);
-    out1('\r');
-    out1('\n');
 }
 
 
 static char set[]="0123456789ABCDEF";
-void cout(char c){
-   out1(c);
-}
-void acout(unsigned char c){
+void acout(int fd, unsigned char c){
     if(c>=32 && c<=127){
-        out1(c);
+        out1(fd, c);
     }else{
-        _write(1,"\\x",2),
-        out1(set[(c>>4)&0x0f]);
-        out1(set[c&0x0f]);
+        _write(fd,"\\x",2),
+        out1(fd, set[(c>>4)&0x0f]);
+        out1(fd, set[c&0x0f]);
     }
 }
 
-void xcout(unsigned char c){
-   out1(set[(c>>4)&0x0f]);
-   out1(set[c&0x0f]);
+void xcout(int fd,unsigned char c){
+   out1(fd, set[(c>>4)&0x0f]);
+   out1(fd, set[c&0x0f]);
 }
-void x4cout(uint32_t c){
-   out1(set[(c>>28)&0x0f]);
-   out1(set[(c>>24)&0x0f]);
-   out1(set[(c>>20)&0x0f]);
-   out1(set[(c>>16)&0x0f]);
-   out1(set[(c>>12)&0x0f]);
-   out1(set[(c>>8)&0x0f]);
-   out1(set[(c>>4)&0x0f]);
-   out1(set[c&0x0f]);
+void x4cout(int fd, uint32_t c){
+   out1(fd, set[(c>>28)&0x0f]);
+   out1(fd, set[(c>>24)&0x0f]);
+   out1(fd, set[(c>>20)&0x0f]);
+   out1(fd, set[(c>>16)&0x0f]);
+   out1(fd, set[(c>>12)&0x0f]);
+   out1(fd, set[(c>>8)&0x0f]);
+   out1(fd, set[(c>>4)&0x0f]);
+   out1(fd, set[c&0x0f]);
 }
 
 uint32_t b2i(void* a){

@@ -14,6 +14,9 @@ void grnled_off(void);
 void grnled_on(void);
 void beep_off(void);
 void beep_on(void);
+void usart3_setup(void);
+void usart2_setup(void);
+void usart1_setup(void);
 
 
 #endif

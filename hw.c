@@ -1,7 +1,9 @@
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/usart.h>
+#include <libopencm3/stm32/exti.h>
 #include <libopencm3/cm3/nvic.h>
 #include "hw.h"
+
 
 void init_hw(void){
     //leds
@@ -42,6 +44,14 @@ void init_hw(void){
 
     gpio_set_mode(GPIOC, GPIO_MODE_INPUT, GPIO_CNF_INPUT_PULL_UPDOWN, GPIO7);
     gpio_clear(GPIOC, GPIO7);
+
+    //KN1
+    gpio_set_mode(GPIOA, GPIO_MODE_INPUT, GPIO_CNF_INPUT_PULL_UPDOWN, GPIO12);
+    gpio_set(GPIOA, GPIO12);
+    exti_set_trigger (EXTI12, EXTI_TRIGGER_FALLING);
+    exti_select_source (EXTI12, GPIOA);
+    exti_enable_request (EXTI12);
+    nvic_enable_irq(NVIC_EXTI15_10_IRQ);
 }
 
 void usart3_setup(void) {
@@ -75,16 +85,16 @@ void usart2_setup(void) {
             GPIO_CNF_INPUT_FLOAT, GPIO_USART2_RX);
 
     /* Setup UART parameters. */
-    usart_set_baudrate(USART2, 115200);
+    usart_set_baudrate(USART2, 9600);
     usart_set_databits(USART2, 8);
     usart_set_parity(USART2, USART_PARITY_NONE);
     usart_set_stopbits(USART2, USART_STOPBITS_1);
 
     usart_set_flow_control(USART2, USART_FLOWCONTROL_NONE);
-    usart_set_mode(USART2, USART_MODE_TX_RX);
+    usart_set_mode(USART2, USART_MODE_TX);
 
     /* Enable USART1 Receive interrupt. */
-    USART_CR1(USART2) |= USART_CR1_RXNEIE;
+//    USART_CR1(USART2) |= USART_CR1_RXNEIE;
 
     /* Finally enable the USART. */
     usart_enable(USART2);

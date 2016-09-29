@@ -24,7 +24,7 @@
 #include "verdana8.h"
 #include "lucida10.h"
 #include "Terminus_28pt.h"
-
+#include "felix.h"
 
 //my super change
 
@@ -90,9 +90,6 @@ static void spi_setup(void) {
     gpio_set(GPIOB, GPIO12);
 }
 
-void exti0_isr(void) {
-    exti_reset_request(EXTI0);
-}
 
 void i2c2_ev_isr(void){
     usart_send_blocking(USART1, 'V');
@@ -106,6 +103,10 @@ static ATOM_QUEUE str2print;
 
 static ATOM_QUEUE uart1_rx;
 static ATOM_QUEUE uart1_tx;
+static ATOM_QUEUE uart2_tx;
+
+
+
 void _fault(__unused int code, __unused int line, __unused const char* function){
     cm_mask_interrupts(true);
     grnled_off();
@@ -123,18 +124,39 @@ void _fault(__unused int code, __unused int line, __unused const char* function)
     }
 };
 
+//прерывание по кнопке; промотка ленты
+void exti15_10_isr(void){
+    atomIntEnter();
+    exti_reset_request(EXTI12);
+    exti_disable_request (EXTI12);
+    struct print_str s2pr;
+    s2pr.repeat_lines=1;
+    s2pr.action=ACTION_FEED;
+    s2pr.str[0]=0;
+    atomQueuePut(&str2print, 0, (uint8_t*) &s2pr);
+    atomIntExit(0);
+
+}
+
+
 void usart2_isr(void) {
     static uint8_t data = 'A';
     atomIntEnter();
 
-    if (((USART_CR1(USART2) & USART_CR1_RXNEIE) != 0) &&
-            ((USART_SR(USART2) & USART_SR_RXNE) != 0)) {
-        data = usart_recv(USART2);
-        atomQueuePut(&uart1_rx,0, (uint8_t*) &data);
-    }
+    /* Check if we were called because of TXE. */
+    if (((USART_CR1(USART2) & USART_CR1_TXEIE) != 0) &&
+            ((USART_SR(USART2) & USART_SR_TXE) != 0)) {
 
+        uint8_t status = atomQueueGet(&uart2_tx, 0, &data);
+        if(status == ATOM_OK){
+            usart_send(USART2, data);
+        }else{
+            USART_CR1(USART2) &= ~USART_CR1_TXEIE;
+        }
+    }
     atomIntExit(0);
 }
+
 
 void usart3_isr(void) {
     static uint8_t data = 'A';
@@ -158,14 +180,15 @@ void usart1_isr(void) {
             ((USART_SR(USART1) & USART_SR_RXNE) != 0)) {
         data = usart_recv(USART1);
         atomQueuePut(&uart1_rx,0, (uint8_t*) &data);
-        /*usart_send(USART1, data);
+/*
+        usart_send(USART2, data);
         if(data=='f'){
             fault(0);
         }
         if(data=='z'){
             gpio_toggle(GPIOB, GPIO5);
         }
-        */
+*/
         /* Enable transmit interrupt so it sends back the data. */
         //        USART_CR1(USART2) |= USART_CR1_TXEIE;
     }
@@ -177,7 +200,6 @@ void usart1_isr(void) {
         uint8_t status = atomQueueGet(&uart1_tx, 0, &data);
         if(status == ATOM_OK){
             usart_send(USART1, data);
-            usart_send(USART2, data);
         }else{
             USART_CR1(USART1) &= ~USART_CR1_TXEIE;
         }
@@ -219,20 +241,12 @@ static uint8_t thread_stacks[3][STACK_SIZE];
 #define UART_QLEN 64
 static uint8_t uart1_rx_storage[UART_QLEN];
 static uint8_t uart1_tx_storage[UART_QLEN];
+static uint8_t uart2_tx_storage[UART_QLEN];
 
 #define LINQLEN 2
 #define STRQLEN 2
-struct print_str {
-    uint8_t repeat_lines;
-//    uint8_t action;
-    char str[96];
-};
 static struct print_str str2pr_storage[LINQLEN];
 
-struct print_lin {
-    uint8_t repeat_lines;
-    uint8_t printhead[72];
-};
 //static struct print_lin lin2pr_storage[LINQLEN];
 
 #define CG_STACK_SIZE 1024
@@ -248,8 +262,10 @@ static ATOM_TCB printer_thread_tcb;
 
 static void logic_thread(uint32_t data);
 static ATOM_TCB logic_thread_tcb;
-
-
+//vlad
+static void felixAllTest_thread(uint32_t data);
+static ATOM_TCB felixAllTest_thread_tcb;
+//vlad
 int main(void) {
     cm_mask_interrupts(true);
 
@@ -267,7 +283,6 @@ int main(void) {
     init_hw();
     tim2_setup();
     adc_setup();
-    SBR();
     /*
     i2c1_setup();
     i2c2_setup();
@@ -298,8 +313,11 @@ int main(void) {
         fault(3);
     if (atomSemCreate (&dma_busy, 0) != ATOM_OK) 
         fault(3);
+    if (atomQueueCreate (&uart2_tx, uart2_tx_storage, sizeof(uint8_t), UART_QLEN) != ATOM_OK) 
+        fault(4);
 
     _write(0,"atomthreads ready\r\n",19);
+    _write(2,"preved!",6);
 
     
     //high priority printer thread
@@ -310,12 +328,22 @@ int main(void) {
     atomThreadCreate(&logic_thread_tcb, 30, logic_thread, 0,
             thread_stacks[0], STACK_SIZE, TRUE);
 
+    atomThreadCreate(&felixAllTest_thread_tcb, 29, felixAllTest_thread, 0,
+    		thread_stacks[2], STACK_SIZE, TRUE);
+
     grnled_on();
     atomOSStart();
 
     fault(254);
     while(1){};
     return 0;
+}
+
+static void felixAllTest_thread(uint32_t args __maybe_unused) {
+	while(true){
+		_write(0,".",1);
+		atomTimerDelay(SYSTEM_TICKS_PER_SEC);
+	}
 }
 
 /*
@@ -335,7 +363,9 @@ static void logic_thread(uint32_t args __maybe_unused) {
         uint8_t status = atomQueueGet(&uart1_rx, SYSTEM_TICKS_PER_SEC, (void*)&ch);
         uint32_t rtc=rtc_get_counter_val();
         _write(0,"-=-=[",5);
-        incout(rtc);
+        incout(0,rtc);
+        incout(2,rtc);
+        _write(2,"\r\n",2);
         if(status == ATOM_OK){
             uint8_t done=0;
             if(ch=='\r' || ch=='\n')
@@ -356,6 +386,7 @@ static void logic_thread(uint32_t args __maybe_unused) {
                     _write(0,"Set repeat\r\n",12);
                     s2pr.repeat_lines=s2pr.str[0]-'0';
                 }
+		s2pr.action=ACTION_PRINT;
                 atomQueuePut(&str2print, 0, (uint8_t*) &s2pr);
                 sptr=0;
             }
@@ -389,70 +420,107 @@ void dma1_channel5_isr(void) { //SPI transfer to head done
     dma_disable_transfer_complete_interrupt(DMA1, DMA_CHANNEL5);
     spi_disable_tx_dma(SPI2);
     dma_disable_channel(DMA1, DMA_CHANNEL5);
-    _write(0,"S",1);
 
     atomSemPut (&dma_busy);
     atomIntExit(0);
 }
 
 static void printer_thread(uint32_t arg __maybe_unused) {
-    struct print_str instr;
+	struct print_str instr;
 
-    const FONT_INFO *fonts[]={
-        &Terminus_28ptFontInfo,
-        &lucidaConsole_10ptFontInfo,
-        &verdana_8ptFontInfo,
-    };
-    while(1){
-        uint8_t status = atomQueueGet(&str2print, 0, (void*)&instr);
-        uint32_t x=1000;
+	const FONT_INFO *fonts[]={
+		&Terminus_28ptFontInfo,
+		&lucidaConsole_10ptFontInfo,
+		&verdana_8ptFontInfo,
+	};
+	while(1){
+		uint8_t status = atomQueueGet(&str2print, 0, (void*)&instr);
 
-        if(status == ATOM_OK){
-            _write(0,"print\r\n",7);
-            uint8_t fc[FCLEN];
-            memset(fc,0,FCLEN);
-            uint8_t bin[72];
-            uint8_t h=1;
-            for(int line=0;line<h;line++){
-                int repeatl=instr.repeat_lines;
-                memset(bin,0,72);
-                __unused int bytes=render_line(line, instr.str, sizeof(instr.str), fonts, bin, 72, fc, NULL, &h);
-                
-                dma_channel_reset(DMA1, DMA_CHANNEL5);
-                dma_set_peripheral_address(DMA1, DMA_CHANNEL5, (uint32_t)&SPI2_DR);
-                dma_set_memory_address(DMA1, DMA_CHANNEL5, (uint32_t)bin);
-                dma_set_number_of_data(DMA1, DMA_CHANNEL5, 72);
-                dma_set_read_from_memory(DMA1, DMA_CHANNEL5);
-                dma_enable_memory_increment_mode(DMA1, DMA_CHANNEL5);
+		if(status == ATOM_OK){
+			switch(instr.action){
+				case ACTION_FEED:
+					{
+						_write(0,"feed\r\n",7);
+						uint32_t x = 200;
+						while(!(GPIOA_IDR & 0x00001000)){
+							ONV();
+							MOTOR(x--);
+							idelay(1500);
+						}
+						exti_enable_request (EXTI12);
+					}
+					break;
+				case ACTION_PRINT:
+					{
+						uint32_t x=1000;
 
-                dma_set_peripheral_size(DMA1, DMA_CHANNEL5, DMA_CCR_PSIZE_8BIT);
-                dma_set_memory_size(DMA1, DMA_CHANNEL5, DMA_CCR_MSIZE_8BIT);
 
-                dma_set_priority(DMA1, DMA_CHANNEL5, DMA_CCR_PL_HIGH);
 
-                dma_enable_transfer_complete_interrupt(DMA1, DMA_CHANNEL5);
-                dma_enable_channel(DMA1, DMA_CHANNEL5);
-                spi_enable_tx_dma(SPI2);
 
-                while(repeatl--){
-                    ONV();
-                    MOTOR(--x);
+						_write(0,"print\r\n",7);
+						uint8_t fc[FCLEN];
+						memset(fc,0,FCLEN);
+						uint8_t bin[72];
+						uint8_t h=1;
+						for(int line=0;line<h;line++){
+							int repeatl=instr.repeat_lines;
+							memset(bin,0,72);
+							__unused int bytes=render_line(line, instr.str, sizeof(instr.str), fonts, bin, 72, fc, NULL, &h);
 
-                    atomSemGet (&dma_busy, 0);
-                    gpio_clear(GPIOB, GPIO12); //LATCH PRINTHEAD
-                    gpio_set(GPIOB, GPIO12); //UNLATCH PRINTHEAD
+							dma_channel_reset(DMA1, DMA_CHANNEL5);
+							dma_set_peripheral_address(DMA1, DMA_CHANNEL5, (uint32_t)&SPI2_DR);
+							dma_set_memory_address(DMA1, DMA_CHANNEL5, (uint32_t)bin);
+							dma_set_number_of_data(DMA1, DMA_CHANNEL5, 72);
+							dma_set_read_from_memory(DMA1, DMA_CHANNEL5);
+							dma_enable_memory_increment_mode(DMA1, DMA_CHANNEL5);
 
-                    gpio_set(GPIOC, GPIO0); //Left half
-                    gpio_set(GPIOC, GPIO1); //right half
-                    gpio_set(GPIOB, GPIO14); //strobe
-                    idelay(500);
-                    gpio_clear(GPIOB, GPIO14);//strobe
-                    gpio_clear(GPIOC, GPIO0);//Left half
-                    gpio_clear(GPIOC, GPIO1);//Right half
-                }
-            }
-        }
-    }
+							dma_set_peripheral_size(DMA1, DMA_CHANNEL5, DMA_CCR_PSIZE_8BIT);
+							dma_set_memory_size(DMA1, DMA_CHANNEL5, DMA_CCR_MSIZE_8BIT);
+
+							dma_set_priority(DMA1, DMA_CHANNEL5, DMA_CCR_PL_HIGH);
+
+							dma_enable_transfer_complete_interrupt(DMA1, DMA_CHANNEL5);
+							dma_enable_channel(DMA1, DMA_CHANNEL5);
+							spi_enable_tx_dma(SPI2);
+							int synced=0;
+
+							while(repeatl--){
+								ONV();
+								MOTOR(--x);
+
+								if(!synced){
+									atomSemGet (&dma_busy, 0);
+									gpio_clear(GPIOB, GPIO12); //LATCH PRINTHEAD
+									gpio_set(GPIOB, GPIO12); //UNLATCH PRINTHEAD
+									synced=1;
+								}else{
+									idelay(500);
+								}
+
+
+								gpio_set(GPIOC, GPIO0); //Left half
+								gpio_set(GPIOC, GPIO1); //right half
+								gpio_set(GPIOB, GPIO14); //strobe
+								idelay(500);
+								gpio_clear(GPIOB, GPIO14);//strobe
+								gpio_clear(GPIOC, GPIO0);//Left half
+								gpio_clear(GPIOC, GPIO1);//Right half
+							}
+						}
+					}
+					break;
+			}
+
+
+
+
+
+		}
+	}
+
+
+
+
 }
             /*
             if(data=='c' && 0){
@@ -478,12 +546,26 @@ static void printer_thread(uint32_t arg __maybe_unused) {
                 _write(0, (char*)&data, 1);
             }
             */
-int _write(__unused int file, char *ptr, int len) {
+int _write(int file, char *ptr, int len) {
     int i;
     for (i = 0; i < len; i++){
-        atomQueuePut(&uart1_tx,0, (uint8_t*) &ptr[i]);
+	    switch(file){
+		    case 0: //RS-232
+			    atomQueuePut(&uart1_tx,0, (uint8_t*) &ptr[i]);
+			    break;
+		    case 2: //DISPLAY
+			    atomQueuePut(&uart2_tx,0, (uint8_t*) &ptr[i]);
+			    break;
+	    }
     }
-    USART_CR1(USART1) |= USART_CR1_TXEIE;
+    switch(file){
+	    case 0:
+		    USART_CR1(USART1) |= USART_CR1_TXEIE;
+		    break;
+	    case 2:
+		    USART_CR1(USART2) |= USART_CR1_TXEIE;
+		    break;
+    }
     return i;
 }
 
