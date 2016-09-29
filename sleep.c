@@ -1,4 +1,11 @@
 #include "sleep.h"
+#include <atom.h>
+#include <atomsem.h>
+
+extern void _fault(int, int, const char*);
+#define fault(code) _fault(code,__LINE__,__FUNCTION__)
+
+static ATOM_SEM ibusy;
 
 void tim2_setup(void) {
 	/* Enable TIM2 clock. */
@@ -21,7 +28,7 @@ void tim2_setup(void) {
 	timer_set_prescaler(TIM2, 24);
 
 	/* Enable preload. */
-	timer_disable_preload(TIM2);
+	timer_enable_preload(TIM2);
 
 	/* Continous mode. */
 	timer_continuous_mode(TIM2);
@@ -55,20 +62,23 @@ void tim2_setup(void) {
 	timer_enable_counter(TIM2);
 
 	/* Enable commutation interrupt. */
-	timer_enable_irq(TIM2, TIM_DIER_CC1IE);
+	//timer_enable_irq(TIM2, TIM_DIER_CC1IE);
+        if (atomSemCreate (&ibusy, 0) != ATOM_OK) 
+            fault(3);
 }
 void tim2_isr(void) {
-//    atomIntEnter();
-    if (timer_get_flag(TIM2, TIM_SR_CC1IF)) {
-        timer_clear_flag(TIM2, TIM_SR_CC1IF);
-//        char data='T';
-//        atomQueuePut(&uart1_tx,0, (uint8_t*) &data);
+    atomIntEnter();
+    if (timer_get_flag(TIM2, TIM_SR_UIF)) {
+        //timer_clear_flag(TIM2, TIM_SR_UIF);
+        TIM_SR(TIM2) &= ~TIM_SR_UIF;
+        //timer_disable_irq(TIM2, TIM_DIER_UIE);
+        TIM_DIER(TIM2) &= ~TIM_DIER_UIE; //disable interrupt
+        atomSemPut (&ibusy);
     }
-//    atomIntExit(0);
+    atomIntExit(0);
 }
 
-#if 1
-
+#if 0
 void cdelay(uint32_t t) {
     volatile uint32_t t1=timer_get_counter(TIM2);
     volatile uint32_t t2=t1-t;
@@ -88,13 +98,13 @@ void cdelay(uint32_t t) {
 }
 #endif
 
-#if 0
-inline void idelay(uint32_t);
-inline void idelay(uint32_t t){
+#if 1
+void idelay(uint32_t t){
+    TIM_SR(TIM2) &= ~TIM_SR_UIF;
     timer_set_counter(TIM2, t);
-    TIM_DIER(TIM2) |= TIM_DIER_CC1IE;
-    //timer_enable_irq(TIM2, TIM_DIER_CC1IE);
-    __asm("wfi");
+    TIM_DIER(TIM2) |= TIM_DIER_UIE;
+    //timer_enable_irq(TIM2, TIM_DIER_UIE);
+    atomSemGet (&ibusy, 0);
 }
 #endif
 

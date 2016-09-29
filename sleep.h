@@ -8,5 +8,6 @@
 
 void tim2_setup(void);
 void cdelay(uint32_t);
+void idelay(uint32_t);
 
 #endif

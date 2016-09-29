@@ -82,7 +82,7 @@ CFLAGS		+= -Os -g
 CFLAGS		+= -Wextra -Wshadow -Wimplicit-function-declaration
 CFLAGS		+= -Wredundant-decls -Wmissing-prototypes -Wstrict-prototypes
 CFLAGS		+= -fno-common -ffunction-sections -fdata-sections
-CFLAGS		+= -I/usr/local/gcc-arm-embedded-5_2-2015q4-20151219/arm-none-eabi/include
+#CFLAGS		+= -I/usr/local/gcc-arm-embedded-5_2-2015q4-20151219/arm-none-eabi/include
 
 ###############################################################################
 # C++ flags
