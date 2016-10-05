@@ -359,7 +359,7 @@ static void logic_thread(uint32_t args __maybe_unused) {
     s2pr.repeat_lines=1;
     uint32_t sptr=0;
     while(1){
-        uint8_t status = atomQueueGet(&uart1_rx, SYSTEM_TICKS_PER_SEC, (void*)&ch);
+        uint8_t status = atomQueueGet(&uart1_rx, SYSTEM_TICKS_PER_SEC*10, (void*)&ch);
         uint32_t rtc=rtc_get_counter_val();
         _write(0,"-=-=[",5);
         incout(0,rtc);
