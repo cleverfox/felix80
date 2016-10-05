@@ -27,12 +27,12 @@ DEFS		+= -DSTM32F1
 FP_FLAGS	?= -msoft-float
 ARCH_FLAGS	= -mthumb -mcpu=cortex-m3 $(FP_FLAGS) -mfix-cortex-m3-ldrd
 CFLAGS += -Iatomthreads/kernel -Iatomthreads/ports/cortex-m
-#CFLAGS += -std=c99
+CFLAGS += -std=c99
 CFLAGS += -D_XOPEN_SOURCE=0
 CFLAGS += -Ilibopencm3/include -Ichargen
 #CFLAGS += -I/usr/local/gcc-arm-embedded-5_4-2016q2-20160622/arm-none-eabi/include
 
-OBJS = tools.o cortexm3_macro.o hw.o sleep.o iic.o chargen.o
+OBJS = tools.o cortexm3_macro.o hw.o sleep.o iic.o chargen.o serial.o
 
 include Makefile.rules
 

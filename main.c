@@ -25,11 +25,11 @@
 #include "lucida10.h"
 #include "Terminus_28pt.h"
 #include "felix.h"
+#include "serial.h"
 
 //my super change
 
-void _fault(int, int, const char*);
-#define fault(code) _fault(code,__LINE__,__FUNCTION__)
+
 /*
 void hard_fault_handler() {
     fault(255);
@@ -106,7 +106,6 @@ static ATOM_QUEUE uart1_tx;
 static ATOM_QUEUE uart2_tx;
 
 
-
 void _fault(__unused int code, __unused int line, __unused const char* function){
     cm_mask_interrupts(true);
     grnled_off();
@@ -158,20 +157,6 @@ void usart2_isr(void) {
 }
 
 
-void usart3_isr(void) {
-    static uint8_t data = 'A';
-    atomIntEnter();
-
-    if (((USART_CR1(USART3) & USART_CR1_RXNEIE) != 0) &&
-            ((USART_SR(USART3) & USART_SR_RXNE) != 0)) {
-        data = usart_recv(USART3);
-        atomQueuePut(&uart1_rx,0, (uint8_t*) &data);
-    }
-
-    atomIntExit(0);
-}
-
-
 void usart1_isr(void) {
     static uint8_t data = 'A';
     atomIntEnter();
@@ -180,17 +165,6 @@ void usart1_isr(void) {
             ((USART_SR(USART1) & USART_SR_RXNE) != 0)) {
         data = usart_recv(USART1);
         atomQueuePut(&uart1_rx,0, (uint8_t*) &data);
-/*
-        usart_send(USART2, data);
-        if(data=='f'){
-            fault(0);
-        }
-        if(data=='z'){
-            gpio_toggle(GPIOB, GPIO5);
-        }
-*/
-        /* Enable transmit interrupt so it sends back the data. */
-        //        USART_CR1(USART2) |= USART_CR1_TXEIE;
     }
 
     /* Check if we were called because of TXE. */
@@ -202,6 +176,28 @@ void usart1_isr(void) {
             usart_send(USART1, data);
         }else{
             USART_CR1(USART1) &= ~USART_CR1_TXEIE;
+        }
+    }
+    atomIntExit(0);
+}
+
+void usart3_isr(void) {
+    static uint8_t data = 'A';
+    atomIntEnter();
+    if (((USART_CR1(USART3) & USART_CR1_RXNEIE) != 0) &&
+            ((USART_SR(USART3) & USART_SR_RXNE) != 0)) {
+        data = usart_recv(USART3);
+        atomQueuePut(&uart3_rx,0, (uint8_t*) &data);
+    }
+
+    /* Check if we were called because of TXE. */
+    if (((USART_CR1(USART3) & USART_CR1_TXEIE) != 0) &&
+            ((USART_SR(USART3) & USART_SR_TXE) != 0)) {
+        uint8_t status = atomQueueGet(&uart3_tx, 0, &data);
+        if(status == ATOM_OK){
+            usart_send(USART3, data);
+        }else{
+            USART_CR1(USART3) &= ~USART_CR1_TXEIE;
         }
     }
     atomIntExit(0);
@@ -316,6 +312,9 @@ int main(void) {
     if (atomQueueCreate (&uart2_tx, uart2_tx_storage, sizeof(uint8_t), UART_QLEN) != ATOM_OK) 
         fault(4);
 
+    if(init_serial_thread())
+    	fault(5);
+
     _write(0,"atomthreads ready\r\n",19);
     _write(2,"preved!",6);
 
@@ -341,7 +340,7 @@ int main(void) {
 
 static void felixAllTest_thread(uint32_t args __maybe_unused) {
 	while(true){
-		_write(0,".",1);
+		//_write(0,".",1);
 		atomTimerDelay(SYSTEM_TICKS_PER_SEC);
 	}
 }
@@ -551,16 +550,22 @@ int _write(int file, char *ptr, int len) {
     for (i = 0; i < len; i++){
 	    switch(file){
 		    case 0: //RS-232
-			    atomQueuePut(&uart1_tx,0, (uint8_t*) &ptr[i]);
+			    atomQueuePut(&uart1_tx,-1, (uint8_t*) &ptr[i]);
 			    break;
 		    case 2: //DISPLAY
 			    atomQueuePut(&uart2_tx,0, (uint8_t*) &ptr[i]);
 			    break;
+		    case 3: //USB
+		    	atomQueuePut(&uart3_tx,0, (uint8_t*) &ptr[i]);
+		    	break;
 	    }
     }
     switch(file){
 	    case 0:
 		    USART_CR1(USART1) |= USART_CR1_TXEIE;
+		    break;
+	    case 3:
+		    USART_CR1(USART3) |= USART_CR1_TXEIE;
 		    break;
 	    case 2:
 		    USART_CR1(USART2) |= USART_CR1_TXEIE;

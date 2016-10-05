@@ -57,11 +57,14 @@ void init_hw(void){
 void usart3_setup(void) {
     nvic_enable_irq(NVIC_USART3_IRQ);
 
-    gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_50_MHZ,
-            GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO_USART3_TX);
 
-    gpio_set_mode(GPIO3, GPIO_MODE_INPUT,
-            GPIO_CNF_INPUT_FLOAT, GPIO_USART3_RX);
+    gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_50_MHZ,
+            GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO_USART3_PR_TX);
+
+    gpio_set_mode(GPIOC, GPIO_MODE_INPUT,
+            GPIO_CNF_INPUT_FLOAT, GPIO_USART3_PR_RX);
+
+    AFIO_MAPR |= AFIO_MAPR_USART3_REMAP_PARTIAL_REMAP;
 
     usart_set_baudrate(USART3, 115200);
     usart_set_databits(USART3, 8);
@@ -70,6 +73,7 @@ void usart3_setup(void) {
 
     usart_set_flow_control(USART3, USART_FLOWCONTROL_NONE);
     usart_set_mode(USART3, USART_MODE_TX_RX);
+
     USART_CR1(USART3) |= USART_CR1_RXNEIE;
     usart_enable(USART3);
 }
@@ -131,7 +135,7 @@ void usart1_setup(void) {
 void usart_setup(void) {
     usart1_setup();
     usart2_setup();
-    //usart3_setup();
+    usart3_setup();
 }
 
 
